@@ -413,3 +413,12 @@ class App1:
                 App1(video_src, paused = '--pause' in opts).run(one)
                 print "__nawal__"
 
+print __doc__
+import sys, getopt
+opts, args = getopt.getopt(sys.argv[1:], '', ['pause'])
+opts = dict(opts)
+try: video_src = args[0]
+except: video_src = '0'
+App(video_src, paused = '--pause' in opts).run(one)
+cv2.destroyAllWindows()        
+                    
