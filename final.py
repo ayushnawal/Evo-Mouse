@@ -279,4 +279,137 @@ class App:
                 App1(video_src, paused = '--pause' in opts).run(one)
                 break
 
+class App1:
+    def __init__(self, video_src, paused = False):
+        self.cap = video.create_capture(0)
+        _, self.frame = self.cap.read()
+        cv2.imshow('frame', self.frame)
+        self.rect_sel = RectSelector('frame', self.onrect)
+        self.trackers = []
+        self.paused = paused
+
+    def onrect(self, rect):
+        frame_gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+        tracker = MOSSE(frame_gray, rect)
+        self.trackers.append(tracker)
+
+    def run(self,one):
+        global required_area
+        global max_area
+        coun_max=0
+        while True:
+            
+            if not self.paused:
+                ret, self.frame = self.cap.read()
+                if not ret:
+                    break
+                frame_gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+                blurgray = cv2.GaussianBlur(frame_gray,(5,5),0)
+                ret,thresh1 = cv2.threshold(blurgray,70,255,cv2.THRESH_BINARY_INV +cv2.THRESH_OTSU)
+                #cv2.imshow('thresh',thresh1)
+                image,contours, hierarchy = cv2.findContours(thresh1,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+                drawing = np.zeros(self.frame.shape,np.uint8)    
+                max_area=0
+                ci=0
+                for i in range(len(contours)):
+                        cnt=contours[i]
+                        area = cv2.contourArea(cnt)
+                        #setting required_area
+                        if(area>max_area):
+                            max_area=area
+                            if(max_area>required_area):
+                                required_area = max_area
+                            ci=i
+                cnt=contours[ci]
+                hull = cv2.convexHull(cnt)
+                moments = cv2.moments(cnt)
+                if moments['m00']!=0:
+                            cx = int(moments['m10']/moments['m00']) # cx = M10/M00
+                            cy = int(moments['m01']/moments['m00']) # cy = M01/M00
+    
+                centr=(cx,cy)       
+                cv2.circle(self.frame,centr,5,[0,0,255],2)
+                cv2.drawContours(drawing,[cnt],0,(0,255,0),2) 
+                cv2.drawContours(drawing,[hull],0,(0,0,255),2) 
+          
+                cnt = cv2.approxPolyDP(cnt,0.01*cv2.arcLength(cnt,True),True)
+                hull = cv2.convexHull(cnt,returnPoints = False)
+                
+                if(1):
+                           defects = cv2.convexityDefects(cnt,hull)
+                           mind=0
+                           maxd=0
+                           coun=0
+                           
+                           for i in range(defects.shape[0]):
+                                coun=coun+1
+                                s,e,f,d = defects[i,0]
+                                start = tuple(cnt[s][0])
+                                end = tuple(cnt[e][0])
+                                far = tuple(cnt[f][0])
+                                dist = cv2.pointPolygonTest(cnt,centr,True)
+                                cv2.line(self.frame,start,end,[0,255,0],2)
+                                cv2.circle(self.frame,far,5,[0,0,255],-1)
+                                cv2.circle(self.frame,start,5,[255,0,0],-1)
+                    
+                           i=0
+                           font = cv2.FONT_HERSHEY_SIMPLEX
+                           cv2.putText(self.frame,str(coun),(0,40), font, 1,(0,0,0),2)
+                           cv2.putText(self.frame,str(coun_max),(0,80), font, 1,(0,0,0),2)
+                           (x, y) = win32api.GetCursorPos()
+                           if(1):    
+                               if(coun == coun_max+1):
+                                   while(one==0):
+                                       (x,y) = win32api.GetCursorPos()
+                                       win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, x, y, 30, 0)
+                                       end = 1
+                                       one=1
+                               if(coun == coun_max-1):
+                                   while(one==0):
+                                       (x,y) = win32api.GetCursorPos()
+                                       win32api.mouse_event(win32con.MOUSEEVENTF_WHEEL, x, y, -30, 0)
+                                       end = 1
+                                       one=1
+
+                               if(coun == coun_max):
+                                   (x,y) = win32api.GetCursorPos()
+                                   #win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP,int(screenWidth -4*x),int(2*y),0,0)
+                                   end = 0
+                                   one=0
+
+                           #else:
+                            #pyautogui.hotkey('win','m')
+                for tracker in self.trackers:
+                    tracker.update(frame_gray)
+
+            vis = self.frame.copy()
+            for tracker in self.trackers:
+                tracker.draw_state(vis,0)
+            if len(self.trackers) > 0:
+                cv2.imshow('tracker state', self.trackers[-1].state_vis)
+            self.rect_sel.draw(vis)
+
+            cv2.imshow('frame', vis)
+            ch = cv2.waitKey(10)
+            if ch == ord('s'):
+                coun_max = coun
+                a=cx-80
+                b=cy-80
+                c=cx+80
+                d=cy+80
+                frame_gray = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+                tracker = MOSSE(frame_gray,(a,b,c,d))
+                self.trackers.append(tracker)
+            if ch == 27:
+                self.cap.release()
+                break
+            if ch == ord(' '):
+                self.paused = not self.paused
+            if ch == ord('c'):
+                self.trackers = []
+                coun_max = 0
+            if ch == ord('g'):
+                print "__ayush__"
+                App1(video_src, paused = '--pause' in opts).run(one)
+                print "__nawal__"
 
